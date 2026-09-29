@@ -1,5 +1,5 @@
 // Salvadanaio — service worker (funzionamento offline)
-const CACHE = 'salvadanaio-v3';
+const CACHE = 'salvadanaio-v4';
 const FILES = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png', './logo-white.png'];
 
 self.addEventListener('install', e => {
