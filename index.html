@@ -38,7 +38,11 @@ button{cursor:pointer}
 header{position:sticky;top:0;z-index:5;background:linear-gradient(var(--bg) 70%,rgba(10,22,40,0));
   padding:calc(var(--safe-t) + 14px) 16px 10px;display:flex;align-items:center;gap:10px}
 .brand{display:flex;align-items:center;gap:10px;flex:1}
-.brand img{width:30px;height:30px;border-radius:8px}
+.brand img{width:32px;height:32px;border-radius:9px;background:#fff;display:block}
+.eye{width:42px;height:42px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--text2);display:grid;place-items:center}
+.eye svg{width:22px;height:22px}
+.eye.on{color:var(--gold2);border-color:rgba(212,175,55,.5);background:var(--gold-dim)}
+.hidden-note{font-size:11px;color:var(--gold2);letter-spacing:.4px}
 .brand b{font-family:Georgia,"Times New Roman",serif;font-weight:600;font-size:21px;letter-spacing:.3px}
 .brand small{display:block;font-size:11px;color:var(--muted);letter-spacing:1.2px;text-transform:uppercase;margin-top:-2px}
 
@@ -194,7 +198,7 @@ nav button.on{color:var(--gold2)}
    Tutti i dati restano nel telefono (localStorage).
    ========================================================= */
 const KEY='salvadanaio.v1';
-const APP_VERSION='1.0';
+const APP_VERSION='1.1';
 
 const CAT_OUT=[
   ['spesa','Spesa','🛒'],['casa','Casa e bollette','🏠'],['auto','Auto e trasporti','⛽'],['bar','Bar e ristoranti','☕'],
@@ -205,7 +209,7 @@ const CAT_IN=[
   ['stip','Stipendio','💼'],['mens','13ª / 14ª','⭐'],['rimb','Rimborsi','↩️'],['regin','Regali','🎁'],['altroin','Altre entrate','➕']
 ];
 const CAT_ADJ=['adj','Rettifica saldo','⚖️'];
-const CAT_TR=['tr','Giroconto','⇄'];
+const CAT_TR=['tr','Prelevamento','🏧'];
 const catMap={};
 [...CAT_OUT,...CAT_IN,CAT_ADJ,CAT_TR].forEach(c=>catMap[c[0]]={id:c[0],name:c[1].replace(/\u00AD/g,''),e:c[2]});
 const WNAME={conto:'Conto corrente',contanti:'Contanti'};
@@ -237,17 +241,46 @@ const dayLabel=s=>{const d=parseD(s);const t=today();
 const shortD=s=>{const d=parseD(s);return d.getDate()+' '+MESI3[d.getMonth()]};
 
 /* ---------------- money utils ---------------- */
-const fmt=new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR'});
-const fmt0=new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR',maximumFractionDigits:0});
-const eur=v=>fmt.format(Math.round(v*100)/100);
-const eur0=v=>fmt0.format(Math.round(v));
+// Formattazione italiana con il punto delle migliaia SEMPRE (Intl it-IT non lo mette sotto 10.000)
+const HIDE_KEY='salvadanaio.hide';
+let HIDE=false; try{HIDE=localStorage.getItem(HIDE_KEY)==='1'}catch(e){}
+const MASK='••••';
+function grp(intStr){return intStr.replace(/\B(?=(\d{3})+(?!\d))/g,'.')}
+function numIt(v,dec){
+  const neg=v<0; const a=Math.abs(v);
+  const s=dec?a.toFixed(2):String(Math.round(a));
+  const [i,d]=s.split('.');
+  return (neg&&Number(s)!==0?'-':'')+grp(i)+(d?','+d:'');
+}
+const eur=v=>HIDE?MASK+' €':numIt(Math.round(v*100)/100,true)+' €';
+const eur0=v=>HIDE?MASK+' €':numIt(v,false)+' €';
 const r2=v=>Math.round(v*100)/100;
 function parseAmt(s){
   if(s==null)return NaN; s=String(s).trim().replace(/\s|€/g,'');
   if(s.includes(','))s=s.replace(/\./g,'').replace(',','.');
+  else if(/^-?\d{1,3}(\.\d{3})+$/.test(s))s=s.replace(/\./g,'');
   const v=parseFloat(s); return isFinite(v)?r2(v):NaN;
 }
-const amtIn=v=>v?String(r2(v)).replace('.',','):'';
+const amtIn=v=>{if(!v)return '';const r=r2(v);return Number.isInteger(r)?grp(String(r)):numIt(r,true)};
+// campo importo: mette i punti delle migliaia mentre scrivi; il punto digitato vale come virgola decimale
+function liveAmount(inp){
+  if(!inp)return;
+  let prev=inp.value;
+  inp.addEventListener('input',()=>{
+    let v=inp.value;
+    const typedDot=v.length>prev.length&&v.endsWith('.')&&!v.slice(0,-1).includes(',');
+    if(typedDot)v=v.slice(0,-1)+',';
+    const neg=inp.dataset.neg==='1'&&v.trim().startsWith('-');
+    v=v.replace(/[^0-9,]/g,'');
+    const ci=v.indexOf(',');
+    let ip=ci>=0?v.slice(0,ci):v, dp=ci>=0?v.slice(ci+1).replace(/,/g,'').slice(0,2):null;
+    ip=ip.replace(/^0+(?=\d)/,'');
+    if(ip===''&&dp!==null)ip='0';
+    inp.value=(neg?'-':'')+grp(ip)+(dp!==null?','+dp:'');
+    prev=inp.value;
+    inp.dispatchEvent(new Event('amount'));
+  });
+}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 /* ---------------- core calculations ---------------- */
@@ -354,6 +387,8 @@ $('#ov').onclick=closeSheet;
 
 let VIEW='home', MOV_M=null, MOV_W='all', AN_M=null;
 const ICONS={
+  eye:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+  eyeOff:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.9 5.2A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-2.6 3.6M6.6 6.6C3.8 8.4 2 12 2 12s3.6 7 10 7a10 10 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M3 3l18 18"/></svg>',
   home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-5h4v5"/></svg>',
   mov:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>',
   an:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
@@ -367,7 +402,7 @@ function render(){
   if(!S){renderOnboarding();return}
   const app=$('#app');
   app.innerHTML=`
-  <header><div class="brand"><img src="icon-192.png" alt=""><div><b>Salvadanaio</b><small>La tua liquidità</small></div></div></header>
+  <header><div class="brand"><img src="logo-white.png" alt=""><div><b>Salvadanaio</b><small>La mia liquidità</small></div></div><button class="eye ${HIDE?'on':''}" id="eye" aria-label="${HIDE?'Mostra importi':'Nascondi importi'}">${HIDE?ICONS.eyeOff:ICONS.eye}</button></header>
   <main>
     <section class="view ${VIEW==='home'?'on':''}" id="v-home"></section>
     <section class="view ${VIEW==='mov'?'on':''}" id="v-mov"></section>
@@ -383,6 +418,7 @@ function render(){
   </nav>`;
   app.querySelectorAll('nav [data-v]').forEach(b=>b.onclick=()=>{VIEW=b.dataset.v;render();window.scrollTo(0,0)});
   $('#fab').onclick=()=>txSheet();
+  $('#eye').onclick=()=>{HIDE=!HIDE;try{localStorage.setItem(HIDE_KEY,HIDE?'1':'0')}catch(e){}render();toast(HIDE?'Importi nascosti':'Importi visibili')};
   ({home:renderHome,mov:renderMov,an:renderAn,set:renderSet})[VIEW]();
 }
 
@@ -457,8 +493,8 @@ function txRow(t){
   let sign='-',cls='',sub=WSHORT[t.wallet];
   if(t.type==='in'){sign='+';cls='pos'}
   else if(t.type==='adj'){sign=t.amount>=0?'+':'-';cls=t.amount>=0?'pos':''}
-  else if(t.type==='tr'){sign='';cls='t2';sub=(t.wallet==='conto'?'Prelievo':'Versamento')+' · '+WSHORT[t.wallet]+' → '+WSHORT[t.to]}
-  const title=t.note?esc(t.note):c.name;
+  else if(t.type==='tr'){sign='';cls='t2';sub=WSHORT[t.wallet]+' → '+WSHORT[t.to]}
+  const title=t.note?esc(t.note):(t.type==='tr'?(t.wallet==='conto'?'Prelevamento':'Versamento'):c.name);
   const extra=t.note&&t.type!=='tr'&&t.note!==c.name?c.name+' · ':'';
   return `<button class="tx" data-id="${t.id}"><div class="ic">${c.e}</div>
     <div class="mid"><b>${title}</b><small>${extra}${sub}${t.rec?' · 🔁':''} · ${shortD(t.date)}</small></div>
@@ -531,7 +567,7 @@ function histChart(h){
   let mx=Math.max(0,...vals), mn=Math.min(0,...vals); if(mx===mn)mx=mn+1;
   const y=v=>pt+(mx-v)/(mx-mn)*(H-pt-pb);
   const slot=(W-pl-pr)/Math.max(h.length,6), bw=Math.min(34,slot*0.58);
-  const k=v=>Math.abs(v)>=1000?(v/1000).toLocaleString('it-IT',{maximumFractionDigits:1})+'k':Math.round(v).toString();
+  const k=v=>HIDE?MASK:numIt(v,false);
   let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Risparmio mensile">`;
   s+=`<line x1="${pl}" x2="${W-pr}" y1="${y(0)}" y2="${y(0)}" stroke="var(--line2)" stroke-width="1"/>`;
   h.forEach((d,i)=>{
@@ -605,12 +641,12 @@ function txSheet(t){
   function draw(){
     const cats=st.type==='in'?CAT_IN:CAT_OUT;
     openSheet(`<h2>${edit?'Modifica movimento':'Nuovo movimento'}</h2>
-      <div class="seg t-${st.type}" id="tp">${[['out','Uscita'],['in','Entrata'],['tr','Giroconto']].map(([k,l])=>`<button data-t="${k}" class="${st.type===k?'on':''}">${l}</button>`).join('')}</div>
+      <div class="seg t-${st.type}" id="tp">${[['out','Uscita'],['in','Entrata'],['tr','Prelevamento']].map(([k,l])=>`<button data-t="${k}" class="${st.type===k?'on':''}">${l}</button>`).join('')}</div>
       <div class="amount"><span>€</span><input id="am" inputmode="decimal" placeholder="0,00" value="${amtIn(st.amount)}" autocomplete="off"></div>
       ${st.type==='tr'?`
-        <div class="lbl">Operazione</div>
-        <div class="seg" id="dir"><button data-d="conto" class="${st.wallet==='conto'?'on':''}">Prelievo<br><small class="muted">conto → contanti</small></button><button data-d="contanti" class="${st.wallet==='contanti'?'on':''}">Versamento<br><small class="muted">contanti → conto</small></button></div>
-        <p class="note" style="margin:-4px 0 14px">Un prelievo al bancomat non è una spesa: sposta solo i soldi dal conto al portafoglio.</p>`
+        <div class="lbl">Tipo di operazione</div>
+        <div class="seg" id="dir"><button data-d="conto" class="${st.wallet==='conto'?'on':''}">Prelevamento<br><small class="muted">conto → contanti</small></button><button data-d="contanti" class="${st.wallet==='contanti'?'on':''}">Versamento<br><small class="muted">contanti → conto</small></button></div>
+        <p class="note" style="margin:-4px 0 14px">Un prelevamento al bancomat non è una spesa: sposta solo i soldi dal conto al portafoglio.</p>`
       :`
         <div class="lbl">${st.type==='in'?'Accredito su':'Pagato con'}</div>
         <div class="seg" id="wl"><button data-w="conto" class="${st.wallet==='conto'?'on':''}">🏦 ${st.type==='in'?'Conto':'Conto / carta'}</button><button data-w="contanti" class="${st.wallet==='contanti'?'on':''}">💶 Contanti</button></div>
@@ -622,9 +658,9 @@ function txSheet(t){
       </div>
       <button class="btn" id="ok">${edit?'Salva modifiche':'Registra'}</button>
       ${edit?'<button class="btn danger" id="del" style="margin-top:8px">Elimina</button>':''}`,sh=>{
-      const am=$('#am');
+      const am=$('#am'); liveAmount(am);
       const keep=()=>{st.amount=parseAmt(am.value);st.date=$('#dt').value||today();st.note=$('#nt').value.trim()};
-      sh.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{keep();if(st.type!==b.dataset.t){st.type=b.dataset.t;st.cat=null;if(st.type==='tr')st.to=st.wallet==='conto'?'contanti':'conto'}draw()});
+      sh.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{keep();if(st.type!==b.dataset.t){st.type=b.dataset.t;st.cat=null;if(st.type==='tr'){st.wallet='conto';st.to='contanti'}}draw()});
       sh.querySelectorAll('[data-w]').forEach(b=>b.onclick=()=>{st.wallet=b.dataset.w;sh.querySelectorAll('[data-w]').forEach(x=>x.classList.toggle('on',x===b))});
       sh.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{st.wallet=b.dataset.d;st.to=b.dataset.d==='conto'?'contanti':'conto';sh.querySelectorAll('[data-d]').forEach(x=>x.classList.toggle('on',x===b))});
       sh.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{st.cat=b.dataset.c;sh.querySelectorAll('[data-c]').forEach(x=>x.classList.toggle('on',x===b))});
@@ -652,12 +688,12 @@ function alignSheet(w){
   openSheet(`<h2>Allinea ${WNAME[w].toLowerCase()}</h2>
     <p class="t2" style="margin-top:-6px">Saldo secondo l'app: <b class="num">${eur(cur)}</b></p>
     <div class="lbl">${w==='conto'?'Saldo reale in banca':'Contanti che hai davvero'}</div>
-    <div class="amount"><span>€</span><input id="am" inputmode="decimal" placeholder="0,00" autocomplete="off"></div>
+    <div class="amount"><span>€</span><input id="am" inputmode="decimal" data-neg="1" placeholder="0,00" autocomplete="off"></div>
     <p class="note" id="df" style="text-align:center;min-height:20px"></p>
     <p class="note">La differenza viene registrata come <b>rettifica</b>: se è negativa conta come spesa non registrata, così il risparmio resta realistico.</p>
     <button class="btn" id="ok">Allinea</button>`,()=>{
-    const am=$('#am');
-    am.oninput=()=>{const v=parseAmt(am.value);$('#df').innerHTML=isFinite(v)?`Differenza: <b class="num ${v-cur>=0?'pos':'neg'}">${v-cur>=0?'+':''}${eur(v-cur)}</b>`:''};
+    const am=$('#am'); liveAmount(am);
+    am.addEventListener('amount',()=>{const v=parseAmt(am.value);$('#df').innerHTML=isFinite(v)?`Differenza: <b class="num ${v-cur>=0?'pos':'neg'}">${v-cur>=0?'+':''}${eur(v-cur)}</b>`:''});
     $('#ok').onclick=()=>{
       const v=parseAmt(am.value); if(!isFinite(v)){toast('Inserisci il saldo');return}
       const d=r2(v-cur); if(Math.abs(d)<0.005){closeSheet();toast('Già allineato ✓');return}
@@ -673,6 +709,7 @@ function numSheet(title,val,apply,extra,hint){
     <div class="amount"><span>€</span><input id="am" inputmode="decimal" value="${amtIn(val)}" placeholder="0,00" autocomplete="off"></div>
     ${hint?`<p class="note" style="text-align:center;margin:-6px 0 12px">${hint}</p>`:''}
     <button class="btn" id="ok">Salva</button>${extra?`<button class="btn ghost" id="ex" style="margin-top:8px">${extra.label}</button>`:''}`,()=>{
+    liveAmount($('#am'));
     $('#ok').onclick=()=>{const v=parseAmt($('#am').value);if(!isFinite(v)||v<0){toast('Importo non valido');return}apply(v);save();closeSheet();render();toast('Salvato ✓')};
     extra&&($('#ex').onclick=()=>{extra.fn();save();closeSheet();render()});
     setTimeout(()=>$('#am').select(),280);
@@ -698,6 +735,7 @@ function recSheet(r){
       <p class="note" style="margin:-4px 0 12px">Viene registrato da solo ogni mese in quel giorno${edit?'':', a partire dalla prossima scadenza'}. Se l'importo cambia (es. una bolletta), modifica il singolo movimento.</p>
       <button class="btn" id="ok">Salva</button>
       ${edit?`<button class="btn ghost" id="pa" style="margin-top:8px">${st.active?'Metti in pausa':'Riattiva'}</button><button class="btn danger" id="del" style="margin-top:8px">Elimina ricorrente</button>`:''}`,sh=>{
+      liveAmount($('#am'));
       const keep=()=>{st.name=$('#nm').value.trim();st.amount=parseAmt($('#am').value);st.day=Math.min(31,Math.max(1,parseInt($('#dy').value)||1))};
       sh.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{keep();if(st.type!==b.dataset.t){st.type=b.dataset.t;st.cat=null}draw()});
       sh.querySelectorAll('[data-w]').forEach(b=>b.onclick=()=>{st.wallet=b.dataset.w;sh.querySelectorAll('[data-w]').forEach(x=>x.classList.toggle('on',x===b))});
@@ -737,10 +775,10 @@ async function exportBackup(){
 }
 function exportCsv(){
   const rows=[['Data','Tipo','Importo','Portafoglio','Verso','Categoria','Nota']];
-  const T={in:'Entrata',out:'Uscita',tr:'Giroconto',adj:'Rettifica'};
+  const T={in:'Entrata',out:'Uscita',tr:'Prelevamento',adj:'Rettifica'};
   for(const t of [...S.tx].sort((a,b)=>a.date.localeCompare(b.date))){
     const signed=t.type==='out'?-t.amount:t.amount;
-    rows.push([t.date,T[t.type],String(signed).replace('.',','),WNAME[t.wallet],t.to?WNAME[t.to]:'',(catMap[t.cat]||{}).name||'',t.note||'']);
+    rows.push([t.date,t.type==='tr'&&t.wallet==='contanti'?'Versamento':T[t.type],String(signed).replace('.',','),WNAME[t.wallet],t.to?WNAME[t.to]:'',(catMap[t.cat]||{}).name||'',t.note||'']);
   }
   const csv='﻿'+rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\r\n');
   shareOrDownload('salvadanaio-movimenti-'+today()+'.csv','text/csv',csv);
@@ -763,20 +801,21 @@ $('#fileIn').onchange=e=>{
    ========================================================= */
 function renderOnboarding(){
   $('#app').innerHTML=`<div class="onb">
-    <img class="logo" src="icon-192.png" alt="">
+    <img class="logo" src="logo-white.png" alt="" style="background:#fff">
     <h1>Salvadanaio</h1><p class="sub">Tre dati per iniziare. Potrai cambiarli quando vuoi.</p>
     <div class="card">
       <div class="two">
         <div class="field"><label>🏦 Saldo conto</label><input id="o1" inputmode="decimal" placeholder="0,00"></div>
         <div class="field"><label>💶 Contanti</label><input id="o2" inputmode="decimal" placeholder="0,00"></div>
       </div>
-      <div class="field"><label>Stipendio netto mensile</label><input id="o3" inputmode="decimal" placeholder="es. 1800"><div class="hint">Serve a calcolare il budget prima che arrivi lo stipendio.</div></div>
+      <div class="field"><label>Stipendio netto mensile</label><input id="o3" inputmode="decimal" placeholder="es. 1.800"><div class="hint">Serve a calcolare il budget prima che arrivi lo stipendio.</div></div>
       <div class="field"><label>Giorno di accredito stipendio</label><input id="o5" type="number" inputmode="numeric" min="1" max="31" placeholder="es. 27 (facoltativo)"><div class="hint">Se lo indichi, lo stipendio verrà registrato da solo ogni mese.</div></div>
       <div class="field"><label>Obiettivo di risparmio mensile</label><input id="o4" inputmode="decimal" placeholder="es. 400"></div>
       <button class="btn" id="go">Inizia</button>
     </div>
     <p class="muted" style="text-align:center;font-size:12px;margin-top:14px">Hai un backup? <a href="#" id="imp" style="color:var(--gold2)">Ripristinalo</a></p>
   </div>`;
+  ['#o1','#o2','#o3','#o4'].forEach(id=>liveAmount($(id)));
   $('#imp').onclick=e=>{e.preventDefault();$('#fileIn').click()};
   $('#go').onclick=()=>{
     const v=id=>{const x=parseAmt($(id).value);return isFinite(x)?x:0};
