@@ -222,6 +222,25 @@ nav button.on{color:var(--gold2)}
 .toast{display:flex;align-items:center;gap:14px}
 .toast.act{pointer-events:auto}
 .toast button{background:none;border:0;color:var(--gold2);font-weight:700;padding:2px 2px;font-size:14px;text-transform:uppercase;letter-spacing:.5px}
+
+/* ---------- v2.2: home personalizzabile, guida, anno ---------- */
+.sw{flex:none;width:46px;height:28px;border-radius:14px;background:var(--line2);position:relative;transition:.2s}
+.sw i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--text2);transition:.2s}
+.sw.on{background:var(--gold)} .sw.on i{left:21px;background:#1b1506}
+.banner .x{margin-left:2px;background:none;color:var(--gold2);padding:6px 4px;font-size:14px}
+details.help{background:var(--bg);border:1px solid var(--line);border-radius:12px;margin-bottom:8px;overflow:hidden}
+details.help summary{list-style:none;padding:13px 14px;font-weight:600;display:flex;gap:10px;align-items:center;cursor:pointer}
+details.help summary::-webkit-details-marker{display:none}
+details.help summary:after{content:'›';margin-left:auto;color:var(--muted);transition:.2s;font-size:18px}
+details.help[open] summary:after{transform:rotate(90deg)}
+details.help div{padding:0 14px 14px;color:var(--text2);font-size:14px;line-height:1.55}
+details.help b{color:var(--text)}
+.ytab{display:grid;grid-template-columns:52px 1fr 1fr 1fr;gap:9px 8px;font-size:13px;align-items:baseline}
+.ytab>div:not(.yh):not(.ym){text-align:right}
+.ytab .yh{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;text-align:right}
+.ytab .yh:first-child{text-align:left}
+.ytab .ym{color:var(--text2);text-transform:capitalize}
+.ytab .yt{font-weight:700;border-top:1px solid var(--line);padding-top:8px}
 </style>
 </head>
 <body>
@@ -239,7 +258,7 @@ nav button.on{color:var(--gold2)}
    Tutti i dati restano nel telefono (localStorage).
    ========================================================= */
 const KEY='salvadanaio.v1';
-const APP_VERSION='2.1';
+const APP_VERSION='2.2';
 const DATA_V=2;
 
 /* ---------------- categorie ---------------- */
@@ -623,6 +642,7 @@ function renderHome(){
   const hasRes=S.funds.length||S.goals.length;
 
   $('#v-home').innerHTML=`
+  ${!S.tipsSeen&&S.tx.length<20?`<div class="banner">👋 <span>Prima volta? Scopri in 2 minuti come funziona</span><button id="tipGo">Leggi</button><button id="tipX" class="x" aria-label="Chiudi">✕</button></div>`:''}
   ${needBackup?`<div class="banner">🛡️ <span>${S.lastBackup?'Ultimo backup oltre 30 giorni fa':'Non hai ancora fatto un backup'}</span><button id="bkNow">Backup</button></div>`:''}
   ${late.length?`<div class="banner">⚖️ <span>Verifica ${late.length===2?'conto e contanti':late[0]==='conto'?'il saldo del conto':'i contanti'}: ultimo controllo ${lateDays} giorni fa</span><button id="alNow">Verifica</button></div>`:''}
 
@@ -638,10 +658,10 @@ function renderHome(){
       <div><small>Obiettivi</small><b class="num">${eur0(resGoals)}</b></div>
       <div><small>Liberi</small><b class="num ${tot-resFunds-resGoals<0?'neg':''}" style="color:${tot-resFunds-resGoals<0?'':'var(--gold2)'}">${eur0(tot-resFunds-resGoals)}</b></div></div>`:''}
   </div>
-  ${homeQuick()}
-  ${homeClose(t)}
+  ${homeOn('quick')?homeQuick():''}
+  ${homeOn('close')?homeClose(t):''}
 
-  <div class="card">
+  ${homeOn('week')?`<div class="card">
     <h3>Questa settimana <span class="badge ${wst}">${ST[wst].i} ${ST[wst].l}</span></h3>
     <div class="week-hero">
       <div><div class="big2 num ${wLeft<0?'neg':''}">${eur(wLeft)}</div><div class="muted" style="font-size:13px">${wLeft>=0?'ancora disponibili':'oltre il budget'} · ${shortD(cw.start)} – ${shortD(cw.end)}</div></div>
@@ -656,9 +676,9 @@ function renderHome(){
         <div class="wv num">${w.future?`<span class="muted">${eur0(w.budget)}</span>`:`${eur0(w.spent)} <span class="muted">/ ${eur0(w.budget)}</span>`}</div></div>`}).join('')}
     </div>
     <p class="note">${p.fixed>0?`Spese fisse${p.quota>0?' e accantonamenti':''} del mese (${eur0(p.fixed)}) escluse: qui conti solo le spese variabili. `:''}Il budget di ogni settimana si ricalcola in base a quanto hai già speso nel mese.</p>
-  </div>
+  </div>`:''}
 
-  <div class="card">
+  ${homeOn('month')?`<div class="card">
     <h3>Obiettivo di ${MESI[+m.slice(5)-1]} <span class="badge neutral">🐷 ${eur0(p.goal)}</span></h3>
     <div class="kv"><span>Entrate del mese</span><b class="num">${eur(p.income)}${p.inc<p.income?' <small class="muted">(previste)</small>':''}</b></div>
     <div class="kv"><span>Budget spese</span><b class="num">${eur(p.budget)}</b></div>
@@ -670,18 +690,18 @@ function renderHome(){
       <span class="badge ${mst}">${ST[mst].i} ${ST[mst].l}</span>
       <span style="font-size:13px;text-align:right" class="t2">A questo ritmo risparmierai<br><b class="num ${p.projected>=p.goal?'pos':'neg'}" style="font-size:16px">${eur0(p.projected)}</b></span>
     </div>
-  </div>
+  </div>`:''}
 
-  <div class="card">
+  ${homeOn('funds')?`<div class="card">
     <h3>Accantonamenti ${chipBtn('fAdd','+ Nuovo')}</h3>
     ${S.funds.length?S.funds.map(f=>{const i=E.fundInfo[f.id],c=catOf(f.cat);
       return `<button class="tx" data-fund="${f.id}"><div class="ic">${c.e}</div>
         <div class="mid"><b>${esc(f.name)}</b><small>${i.ready?'<span class="pos">✓ pronto</span>':'quota '+eur(i.quota)+'/mese'} · scade ${monthShort(i.nextDue)}</small>${miniBar(i.pct,i.ready?'var(--good)':null)}</div>
         <div class="amt num" style="text-align:right">${eur0(i.bal)}<small class="muted" style="display:block;font-weight:400;font-size:12px">su ${eur0(f.amount)}</small></div></button>`}).join('')
       :`<p class="note" style="margin:0">Assicurazione, bollo, TARI, revisione…: l'app mette da parte ogni mese la quota giusta, così la scadenza non ti manda il mese in rosso.</p>`}
-  </div>
+  </div>`:''}
 
-  <div class="card">
+  ${homeOn('goals')?`<div class="card">
     <h3>Obiettivi ${chipBtn('gAdd','+ Nuovo')}</h3>
     ${S.goals.length?S.goals.map(g=>{const i=E.goalInfo[g.id];
       const sub=i.done?'<span class="pos">✓ Raggiunto!</span>'
@@ -692,25 +712,27 @@ function renderHome(){
         <div class="mid"><b>${esc(g.name)}</b><small>${sub}</small>${miniBar(i.pct,i.done?'var(--good)':null)}</div>
         <div class="amt num" style="text-align:right">${eur0(i.dep)}<small class="muted" style="display:block;font-weight:400;font-size:12px">su ${eur0(g.target)}</small></div></button>`}).join('')
       :`<p class="note" style="margin:0">Vacanze, auto nuova, fondo emergenze: fissa una cifra e una data, l'app ti dice quanto mettere da parte ogni mese.</p>`}
-  </div>
+  </div>`:''}
 
-  ${homeLoans()}
+  ${homeOn('loans')?homeLoans():''}
 
-  <div class="card">
+  ${homeOn('last')?`<div class="card">
     <h3>Ultimi movimenti ${S.tx.length?chipBtn('seeAll','Tutti'):''}</h3>
     ${last.length?last.map(txRow).join(''):'<div class="empty">Nessun movimento ancora.<br>Tocca <b style="color:var(--gold2)">+</b> per registrare la prima spesa.</div>'}
-  </div>`;
+  </div>`:''}`;
   document.querySelectorAll('#v-home [data-w]').forEach(b=>b.onclick=()=>alignSheet(b.dataset.w));
   document.querySelectorAll('#v-home [data-fund]').forEach(b=>b.onclick=()=>fundSheet(S.funds.find(f=>f.id===b.dataset.fund)));
   document.querySelectorAll('#v-home [data-goal]').forEach(b=>b.onclick=()=>goalSheet(S.goals.find(g=>g.id===b.dataset.goal)));
   bindTxRows('#v-home');
-  $('#fAdd').onclick=()=>fundSheet();
-  $('#gAdd').onclick=()=>goalSheet();
+  $('#fAdd')&&($('#fAdd').onclick=()=>fundSheet());
+  $('#gAdd')&&($('#gAdd').onclick=()=>goalSheet());
   $('#seeAll')&&($('#seeAll').onclick=()=>go('mov'));
   $('#bkNow')&&($('#bkNow').onclick=exportBackup);
   $('#alNow')&&($('#alNow').onclick=()=>alignSheet(late[0]));
   document.querySelectorAll('#v-home [data-q]').forEach(b=>b.onclick=()=>runQuick(S.quick.find(q=>q.id===b.dataset.q)));
-  $('#qMng').onclick=quickSheet;
+  $('#qMng')&&($('#qMng').onclick=quickSheet);
+  $('#tipGo')&&($('#tipGo').onclick=helpSheet);
+  $('#tipX')&&($('#tipX').onclick=()=>{S.tipsSeen=true;save();render()});
   document.querySelectorAll('#v-home [data-loan]').forEach(b=>b.onclick=()=>{const [ti,li]=b.dataset.loan.split('|');loanSheet(ti,li)});
   bindHomeClose(t);
 }
@@ -816,6 +838,7 @@ function cmpLine(v,a,isCur,elapsed){
   return `<div class="cmp ${cls}">${d>0?'+':''}${d}% rispetto alla media (${eur0(a)})</div>`;
 }
 function renderAn(){
+  if(AN_MODE==='y'){renderYear();return}
   AN_M=AN_M||mKey(today());
   const byCat=catTotals(AN_M); let tot=0; for(const k in byCat)tot+=byCat[k]; tot=r2(tot);
   const cats=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
@@ -829,7 +852,7 @@ function renderAn(){
   const months=[]; for(let i=11;i>=0;i--){const m=addMonths(cur,-i);if(m>=startM)months.push(m)}
   const hist=months.map(m=>{const f=flows(m);return{m,sav:r2(Math.max(S.settings.salary||0,f.inc)-f.out),goal:goalOf(m),cur:m===cur}});
 
-  $('#v-an').innerHTML=`
+  $('#v-an').innerHTML=`${anSeg()}
   <div class="monthnav"><button class="iconbtn" id="aPrev">‹</button><b>${monthLabel(AN_M)}</b><button class="iconbtn" id="aNext">›</button></div>
   <div class="card"><h3>Dove vanno i soldi <span class="num" style="color:var(--text);font-size:14px;letter-spacing:0">${eur(tot)}</span></h3>
     ${av&&cats.length?`<div style="margin:-4px 0 8px">${cmpLine(tot,av.tot,isCur,elapsed).replace('class="cmp','class="cmp tot')}<div class="cmp muted">Confronto con la media ${av.n===1?'del mese precedente':'degli ultimi '+av.n+' mesi'}${isCur?' · mese in corso: giorno '+(+today().slice(8))+' di '+dim(cur):''}</div></div>`:''}
@@ -843,6 +866,7 @@ function renderAn(){
     <div class="hist-detail" id="hd">Tocca una barra per il dettaglio</div>
     <p class="note">Barre: entrate (almeno lo stipendio previsto) meno spese. Trattino bianco: obiettivo del mese.</p>
   </div>`;
+  bindAnSeg();
   $('#aPrev').onclick=()=>{AN_M=addMonths(AN_M,-1);renderAn()};
   $('#aNext').onclick=()=>{AN_M=addMonths(AN_M,1);renderAn()};
   document.querySelectorAll('#v-an [data-hm]').forEach(g=>g.onclick=()=>{
@@ -853,6 +877,103 @@ function renderAn(){
     $('#hd').innerHTML=`<b style="text-transform:capitalize">${monthLabel(h.m)}</b>${h.cur?' (in corso)':''}: risparmio <b class="num">${eur(h.sav)}</b> · obiettivo ${eur0(h.goal)} · <span class="${diff>=0?'pos':'neg'}">${diff>=0?'+':''}${eur(diff)}</span>`;
   });
 }
+/* ---------------- HOME PERSONALIZZABILE ---------------- */
+const HOME_SECTIONS=[['quick','⚡ Spese rapide','Pulsanti per registrare con un tocco'],['close','📅 Chiusura del mese','Bilancio del mese precedente, dal 1° al 15'],
+  ['week','📆 Questa settimana','Budget settimanale delle spese variabili'],['month','🐷 Obiettivo del mese','Budget, spese e previsione di risparmio'],
+  ['funds','🗓️ Accantonamenti','Spese annuali e scadenze'],['goals','🎯 Obiettivi','Risparmi per un traguardo'],
+  ['loans','👥 Da ricevere','Anticipi da farti restituire (solo se ce ne sono)'],['last','🧾 Ultimi movimenti','Le ultime 6 registrazioni']];
+const homeOn=k=>!(S.settings.home&&S.settings.home[k]===false);
+function homeSheet(){
+  openSheet(`<h2>Sezioni della Home</h2>
+    <p class="note" style="margin:-6px 0 10px">Tieni solo quello che usi. La liquidità in alto resta sempre visibile.</p>
+    ${HOME_SECTIONS.map(([k,l,d])=>`<button class="row" data-hs="${k}"><div class="rl">${l}<small>${d}</small></div><span class="sw ${homeOn(k)?'on':''}"><i></i></span></button>`).join('')}`,sh=>{
+    sh.querySelectorAll('[data-hs]').forEach(b=>b.onclick=()=>{
+      const k=b.dataset.hs; S.settings.home=S.settings.home||{}; S.settings.home[k]=!homeOn(k);
+      b.querySelector('.sw').classList.toggle('on',homeOn(k)); save(); render();
+    });
+  });
+}
+
+/* ---------------- COME FUNZIONA ---------------- */
+const HELP=[
+ ['👋','Le basi',`In alto vedi quanti soldi hai: <b>conto corrente</b> e <b>contanti</b>. Con il pulsante <b>+</b> registri:<br>• <b>Uscita</b>: una spesa, pagata con conto/carta o in contanti;<br>• <b>Entrata</b>: stipendio, rimborsi spese, regali ricevuti…;<br>• <b>Prelevamento</b>: quando prendi contanti al bancomat. <b>Non è una spesa</b>: i soldi passano solo dal conto al portafoglio. Da qui c'è anche il <i>Versamento</i>, quando porti contanti in banca.<br>Tocca un movimento per modificarlo o eliminarlo.`],
+ ['📆','Budget della settimana e del mese',`<b>Budget del mese</b> = entrate previste (lo stipendio indicato, o quello che hai davvero incassato se è di più) − il tuo <b>obiettivo di risparmio</b>.<br>Le spese fisse (affitto, bollette ricorrenti, quote degli accantonamenti) vengono tolte subito; quello che resta viene diviso fra le settimane.<br>Se una settimana spendi di più, le successive si riducono da sole. Verde = in linea, giallo = sopra il ritmo, rosso = fuori budget.<br>La <b>previsione</b> ti dice quanto risparmierai a fine mese se continui così.`],
+ ['⚖️','Allinea i saldi',`Ogni tanto controlla il saldo vero della banca e i contanti nel portafoglio, e tocca <b>allinea</b>.<br>Se coincide, basta "È corretto". Se no, scrivi il saldo reale: la differenza viene registrata come <b>rettifica</b> (se mancano soldi conta come spesa non registrata).<br>È la cosa più importante per avere numeri affidabili: l'app te lo ricorda dopo 14 giorni (lo puoi cambiare in Impostazioni).`],
+ ['🔁','Movimenti ricorrenti',`Stipendio, affitto, abbonamenti: impostali in <b>Impostazioni → Movimenti ricorrenti</b> e verranno registrati da soli ogni mese nel giorno indicato. Se una bolletta cambia importo, modifica il singolo movimento.`],
+ ['⚡','Spese rapide',`Le spese che fai sempre uguali (caffè, pieno, pranzo) diventano pulsanti sotto la liquidità: <b>un tocco e sono registrate</b>. Subito dopo compare <b>ANNULLA</b> per qualche secondo. L'app ti suggerisce quelle che ripeti più spesso.`],
+ ['🗓️','Accantonamenti',`Per le spese che non arrivano ogni mese (assicurazione, bollo, TARI…). Indichi importo e scadenza: l'app mette da parte ogni mese la <b>quota giusta</b> e la conta già come spesa fissa.<br>Quando paghi, apri l'accantonamento e tocca <b>Registra il pagamento</b>: la spesa è coperta da quanto hai messo da parte e non manda il mese in rosso.`],
+ ['🎯','Obiettivi',`Vacanze, auto nuova, fondo emergenze: fissa una cifra e una data. L'app ti dice <b>quanto mettere da parte ogni mese</b>. I soldi restano sul conto, ma l'app li segna come "da parte": in alto vedi quanti sono davvero <b>liberi</b>.<br>A inizio mese, se hai risparmiato più del previsto, puoi spostare l'extra in un obiettivo con un tocco.`],
+ ['👥','Anticipi e rimborsi',`Se paghi anche per altri (cena, regalo di gruppo), registra la spesa intera e tocca <b>Ho pagato anche per altri</b>: come spesa tua conta solo la tua parte.<br>In Home trovi <b>Da ricevere</b>: quando ti restituiscono i soldi, tocca il nome e registra il rimborso. Rientra nel saldo ma non conta come entrata.`],
+ ['📊','Analisi',`<b>Mese</b>: dove vanno i soldi, con il confronto rispetto alla tua media degli ultimi 3 mesi (rosso = stai spendendo di più).<br><b>Anno</b>: riepilogo di entrate, spese e risparmio, spese per categoria e <b>spese sanitarie</b> da tenere per la dichiarazione dei redditi.`],
+ ['🔒','Privacy e backup',`I dati restano <b>solo su questo telefono</b>: nessuno li vede, nemmeno chi ha creato l'app. L'<b>occhio</b> in alto nasconde tutti gli importi.<br>Per lo stesso motivo, se cambi telefono o cancelli i dati di Chrome i movimenti si perdono: fai ogni tanto <b>Impostazioni → Esegui backup</b> e salva il file su Drive o inviatelo per mail. L'app te lo ricorda ogni 30 giorni.`],
+];
+function helpSheet(){
+  S.tipsSeen=true; save();
+  openSheet(`<h2>Come funziona</h2>
+    <p class="note" style="margin:-6px 0 12px">Tocca un argomento per aprirlo.</p>
+    ${HELP.map(([e,t,b],i)=>`<details class="help" ${i===0?'open':''}><summary><span>${e}</span>${t}</summary><div>${b}</div></details>`).join('')}
+    <button class="btn" id="hOk" style="margin-top:14px">Ho capito</button>`,()=>{$('#hOk').onclick=()=>{closeSheet();render()}});
+}
+
+/* ---------------- RIEPILOGO ANNUALE ---------------- */
+let AN_MODE='m', AN_Y=null;
+const anSeg=()=>`<div class="seg" style="margin-bottom:12px"><button data-am="m" class="${AN_MODE==='m'?'on':''}">Mese</button><button data-am="y" class="${AN_MODE==='y'?'on':''}">Anno</button></div>`;
+function bindAnSeg(){document.querySelectorAll('#v-an [data-am]').forEach(b=>b.onclick=()=>{AN_MODE=b.dataset.am;renderAn();window.scrollTo(0,0)})}
+function healthTx(y){return S.tx.filter(t=>t.type==='out'&&t.cat==='salute'&&t.date.startsWith(y)).sort((a,b)=>a.date.localeCompare(b.date))}
+function renderYear(){
+  const cur=mKey(today()), y0=+S.setup.slice(0,4), yc=+cur.slice(0,4);
+  AN_Y=AN_Y||yc;
+  const months=[]; for(let i=1;i<=12;i++){const m=AN_Y+'-'+pad(i);if(m>=mKey(S.setup)&&m<=cur)months.push(m)}
+  const rows=months.map(m=>{const f=flows(m),inc=Math.max(S.settings.salary||0,f.inc);return{m,inc,out:f.out,sav:r2(inc-f.out),goal:goalOf(m)}});
+  const done=rows.filter(r=>r.m<cur), base=done.length?done:rows, partialCur=done.length<rows.length&&done.length>0;
+  const T=base.reduce((a,r)=>({inc:a.inc+r.inc,out:a.out+r.out,sav:a.sav+r.sav,goal:a.goal+r.goal}),{inc:0,out:0,sav:0,goal:0});
+  const by={}; for(const r of base){const c=catTotals(r.m);for(const k in c)by[k]=r2((by[k]||0)+c[k])}
+  const cats=Object.entries(by).sort((a,b)=>b[1]-a[1]), max=cats.length?cats[0][1]:1;
+  const med=healthTx(String(AN_Y)), medTot=r2(med.reduce((s,t)=>s+ownAmount(t),0));
+  const inProgress=AN_Y===yc, n=base.length, diff=r2(T.sav-T.goal);
+  $('#v-an').innerHTML=`${anSeg()}
+  <div class="monthnav"><button class="iconbtn" id="yPrev" ${AN_Y<=y0?'disabled style="opacity:.3"':''}>‹</button><b>${AN_Y}${inProgress?' <small class="muted" style="font-weight:400;font-size:13px;text-transform:none;display:inline-block">(in corso)</small>':''}</b><button class="iconbtn" id="yNext" ${AN_Y>=yc?'disabled style="opacity:.3"':''}>›</button></div>
+  ${!n?'<div class="card"><div class="empty">Nessun dato per questo anno.</div></div>':`
+  <div class="card">
+    ${partialCur?`<p class="note" style="margin:0 0 12px;font-size:12px">Totali sui mesi conclusi: ${MESI[+cur.slice(5)-1]} è ancora in corso e non è compreso.</p>`:''}
+    <div class="tot3">
+      <div><small>Entrate</small><b class="num pos">${eur0(T.inc)}</b></div>
+      <div><small>Spese</small><b class="num neg">${eur0(T.out)}</b></div>
+      <div><small>Risparmio</small><b class="num ${T.sav<0?'neg':''}">${eur0(T.sav)}</b></div></div>
+    <div class="kv" style="margin-top:12px"><span>Obiettivo (${n} ${n===1?'mese':'mesi'})</span><b class="num">${eur(T.goal)}</b></div>
+    <div class="kv"><span>Rispetto all'obiettivo</span><b class="num ${diff>=0?'pos':'neg'}">${diff>=0?'+':''}${eur(diff)}</b></div>
+    <div class="kv"><span>Spesa media al mese</span><b class="num">${eur(T.out/n)}</b></div>
+    <div class="kv"><span>Risparmio medio al mese</span><b class="num">${eur(T.sav/n)}</b></div>
+  </div>
+  <div class="card"><h3>Mese per mese</h3>
+    <div class="ytab"><div class="yh">Mese</div><div class="yh">Entrate</div><div class="yh">Spese</div><div class="yh">Risparmio</div>
+    ${rows.map(r=>r.m===cur&&partialCur?`<div class="ym muted">${MESI3[+r.m.slice(5)-1]}</div><div class="muted" style="grid-column:span 3;text-align:right;font-size:12px">in corso · spese finora ${eur0(r.out)}</div>`
+      :`<div class="ym">${MESI3[+r.m.slice(5)-1]}</div><div class="num">${eur0(r.inc)}</div><div class="num">${eur0(r.out)}</div><div class="num ${r.sav>=r.goal?'pos':'neg'}">${eur0(r.sav)}</div>`).join('')}
+    <div class="ym yt">Totale</div><div class="num yt">${eur0(T.inc)}</div><div class="num yt">${eur0(T.out)}</div><div class="num yt ${diff>=0?'pos':'neg'}">${eur0(T.sav)}</div>
+    </div>
+    <p class="note" style="font-size:12px">Risparmio in verde quando raggiunge l'obiettivo del mese.</p>
+  </div>
+  <div class="card"><h3>Spese per categoria <span class="num" style="color:var(--text);font-size:14px;letter-spacing:0">${eur(T.out)}</span></h3>
+    ${cats.length?cats.map(([k,v])=>{const c=catOf(k);return `<div class="catrow"><div style="font-size:18px;text-align:center">${c.e}</div>
+      <div><div class="cn"><span>${esc(c.name)}</span><small class="num">${Math.round(v/T.out*100)}%</small></div><div class="cb"><i style="width:${v/max*100}%"></i></div><div class="cmp muted">media ${eur0(v/n)} al mese</div></div>
+      <div class="cv num">${eur(v)}</div></div>`}).join(''):'<div class="empty">Nessuna spesa.</div>'}
+  </div>`}
+  <div class="card"><h3>💊 Spese sanitarie ${AN_Y} <span class="num" style="color:var(--text);font-size:14px;letter-spacing:0">${eur(medTot)}</span></h3>
+    ${med.length?med.map(t=>`<div class="kv" style="font-size:14px"><span>${shortD(t.date)} · ${esc(t.note||'Salute')} <small class="muted">${t.wallet==='contanti'?'contanti':'carta/conto'}</small></span><span class="num">${eur(ownAmount(t))}</span></div>`).join('')
+      +`<button class="btn ghost sm" id="medCsv" style="margin-top:12px">Esporta l'elenco (CSV)</button>`
+      :'<p class="note" style="margin:0">Nessuna spesa nella categoria Salute quest\'anno.</p>'}
+    <p class="note" style="font-size:12px">Sono le spese registrate nella categoria <b>Salute</b>. Per la detrazione servono scontrini parlanti o fatture. In genere farmaci e dispositivi medici si possono pagare anche in contanti, mentre visite e prestazioni private richiedono un pagamento tracciabile (carta o bonifico): verifica con il tuo CAF o commercialista.</p>
+  </div>`;
+  bindAnSeg();
+  $('#yPrev').onclick=()=>{if(AN_Y>y0){AN_Y--;renderYear()}};
+  $('#yNext').onclick=()=>{if(AN_Y<yc){AN_Y++;renderYear()}};
+  $('#medCsv')&&($('#medCsv').onclick=()=>{
+    const rows=[['Data','Descrizione','Importo','Pagato con']].concat(med.map(t=>[t.date,t.note||'Salute',String(ownAmount(t)).replace('.',','),t.wallet==='contanti'?'Contanti':'Carta / conto']));
+    rows.push(['','Totale',String(medTot).replace('.',','),'']);
+    shareOrDownload('spese-sanitarie-'+AN_Y+'.csv','text/csv','﻿'+rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\r\n'));
+  });
+}
+
 function homeQuick(){
   return `<div class="quick">${S.quick.map(q=>`<button class="qk" data-q="${q.id}"><span>${q.type==='tr'?'🏧':catOf(q.cat).e}</span>${esc(q.name)} <b class="num">${eur(q.amount)}</b></button>`).join('')}
     <button class="qk add" id="qMng">${S.quick.length?'⚙︎':'⚡ Aggiungi spese rapide'}</button></div>`;
@@ -951,6 +1072,10 @@ function renderSet(){
     <button class="row" data-al="contanti"><div class="rl">Allinea contanti<small>Ultimo controllo: ${dayLabel(S.lastAlign.contanti).toLowerCase()}</small></div><div class="rv num">${eur(balance('contanti'))} ›</div></button>
     <button class="row" id="sAlD"><div class="rl">Promemoria di verifica<small>Avviso in Home se non controlli i saldi da tempo</small></div><div class="rv">${ad?'ogni '+ad+' giorni':'disattivato'} ›</div></button>
   </div>
+  <div class="card"><h3>Home e aiuto</h3>
+    <button class="row" id="sHome"><div class="rl">Sezioni della Home<small>Scegli cosa vedere nella schermata principale</small></div><div class="rv">›</div></button>
+    <button class="row" id="sHelp"><div class="rl">Come funziona<small>Guida rapida a tutte le funzioni</small></div><div class="rv">›</div></button>
+  </div>
   <div class="card"><h3>Dati e backup</h3>
     <button class="row" id="bExp"><div class="rl">Esegui backup<small>${S.lastBackup?'Ultimo: '+shortD(S.lastBackup)+' '+S.lastBackup.slice(0,4):'Mai eseguito'} · salvalo su Drive o inviatelo via mail</small></div><div class="rv">⬇</div></button>
     <button class="row" id="bImp"><div class="rl">Ripristina da backup<small>Sostituisce i dati attuali</small></div><div class="rv">⬆</div></button>
@@ -966,6 +1091,8 @@ function renderSet(){
   $('#rAdd').onclick=()=>recSheet();
   $('#sCats').onclick=()=>catsSheet('out');
   $('#sAlD').onclick=alignDaysSheet;
+  $('#sHome').onclick=homeSheet;
+  $('#sHelp').onclick=helpSheet;
   document.querySelectorAll('#v-set [data-r]').forEach(b=>b.onclick=()=>recSheet(recs.find(r=>r.id===b.dataset.r)));
   document.querySelectorAll('#v-set [data-al]').forEach(b=>b.onclick=()=>alignSheet(b.dataset.al));
   $('#bExp').onclick=exportBackup; $('#bImp').onclick=()=>$('#fileIn').click(); $('#bCsv').onclick=exportCsv;
