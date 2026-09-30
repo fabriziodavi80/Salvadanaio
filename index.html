@@ -241,6 +241,19 @@ details.help b{color:var(--text)}
 .ytab .yh:first-child{text-align:left}
 .ytab .ym{color:var(--text2);text-transform:capitalize}
 .ytab .yt{font-weight:700;border-top:1px solid var(--line);padding-top:8px}
+
+/* ---------- selettore del mese ---------- */
+.mp-btn{width:100%;display:flex;align-items:center;justify-content:space-between;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:11px 12px;text-align:left}
+.mp-btn.open{border-color:var(--gold)}
+.mp{background:var(--bg);border:1px solid var(--line2);border-radius:12px;margin-top:8px;padding:10px}
+.mp-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.mp-h b{font-size:16px}
+.mp-h button{width:40px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--text2);font-size:18px}
+.mp-g{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.mp-g button{padding:11px 0;border-radius:10px;border:1px solid var(--line);background:var(--surface);text-transform:capitalize;font-size:14px}
+.mp-g button.on{background:var(--gold);border-color:var(--gold);color:#1b1506;font-weight:600}
+.mp-g button:disabled{opacity:.3}
+.mp-clear{width:100%;margin-top:8px;padding:10px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--text2);font-size:14px}
 </style>
 </head>
 <body>
@@ -258,7 +271,7 @@ details.help b{color:var(--text)}
    Tutti i dati restano nel telefono (localStorage).
    ========================================================= */
 const KEY='salvadanaio.v1';
-const APP_VERSION='2.2';
+const APP_VERSION='2.2.1';
 const DATA_V=2;
 
 /* ---------------- categorie ---------------- */
@@ -555,6 +568,7 @@ function openSheet(html,onReady){
   sheetWanted=true;
   sh.innerHTML='<div class="grab"></div><button class="shx" id="shX" aria-label="Chiudi senza salvare">✕</button>'+html; sh.scrollTop=0;
   $('#shX').onclick=()=>closeSheet();
+  sh.querySelectorAll('input[type=date]').forEach(i=>i.addEventListener('click',()=>{try{i.showPicker()}catch(e){}}));
   $('#ov').classList.add('on');
   if(sh.classList.contains('on'))return onReady&&onReady(sh);
   requestAnimationFrame(()=>{if(sheetWanted)sh.classList.add('on')});
@@ -1403,6 +1417,25 @@ function recSheet(r){
   draw();
 }
 
+/* ---------------- SELETTORE DEL MESE ---------------- */
+function monthPicker(el,value,opts){
+  opts=opts||{}; value=value||''; let open=false;
+  let y=+(value||opts.min||mKey(today())).slice(0,4);
+  function draw(){
+    el.innerHTML=`<button type="button" class="mp-btn ${open?'open':''}"><span style="${value?'text-transform:capitalize':'color:var(--text2)'}">${value?monthLabel(value):(opts.emptyLabel||'Scegli il mese')}</span><span class="mp-ic">📅</span></button>
+      ${open?`<div class="mp">
+        <div class="mp-h"><button type="button" data-y="-1" aria-label="Anno precedente">‹</button><b>${y}</b><button type="button" data-y="1" aria-label="Anno successivo">›</button></div>
+        <div class="mp-g">${MESI3.map((n,i)=>{const m=y+'-'+pad(i+1),dis=opts.min&&m<opts.min;return `<button type="button" data-m="${m}" class="${m===value?'on':''}" ${dis?'disabled':''}>${n}</button>`}).join('')}</div>
+        ${opts.allowEmpty?`<button type="button" class="mp-clear" data-m="">${opts.emptyLabel||'Nessuna'}</button>`:''}
+      </div>`:''}`;
+    el.querySelector('.mp-btn').onclick=()=>{open=!open;if(open)y=+(value||opts.min||mKey(today())).slice(0,4);draw()};
+    el.querySelectorAll('[data-y]').forEach(b=>b.onclick=()=>{y+=+b.dataset.y;draw()});
+    el.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{value=b.dataset.m;open=false;draw()});
+  }
+  draw();
+  return {get:()=>value};
+}
+
 /* ---------------- ACCANTONAMENTI ---------------- */
 const EVERY=[[12,'Annuale'],[6,'Semestrale'],[3,'Trimestrale'],[24,'Biennale']];
 function fundSheet(f){
@@ -1422,10 +1455,8 @@ function fundSheet(f){
       <div class="lbl">Modifica</div>`
     :`<p class="note" style="margin:-6px 0 14px">Per le spese che non arrivano ogni mese. L'app mette da parte ogni mese la quota giusta e la conta già come spesa fissa: quando arriva la scadenza i soldi ci sono e il mese non va in rosso.</p>`}
     <div class="field"><label>Nome</label><input id="nm" value="${esc(st.name)}" placeholder="Es. Assicurazione auto, Bollo, TARI" maxlength="40"></div>
-    <div class="two">
-      <div class="field"><label>Importo €</label><input id="am" inputmode="decimal" value="${amtIn(st.amount)}" placeholder="0,00"></div>
-      <div class="field"><label>${edit?'Scadenza di riferimento':'Prossima scadenza'}</label><input id="du" type="month" value="${st.due}" min="${edit?'':cur}"></div>
-    </div>
+    <div class="field"><label>Importo €</label><input id="am" inputmode="decimal" value="${amtIn(st.amount)}" placeholder="0,00"></div>
+    <div class="field"><label>${edit?'Scadenza di riferimento':'Prossima scadenza'}</label><div id="du"></div></div>
     <div class="lbl">Frequenza</div>
     <div class="seg small">${EVERY.map(([v,l])=>`<button data-ev="${v}" class="${st.every===v?'on':''}">${l}</button>`).join('')}</div>
     <div class="field"><label>Già messo da parte ${edit?'all\'inizio':''}</label><input id="in" inputmode="decimal" value="${amtIn(st.init)}" placeholder="0,00"><div class="hint">Se hai già dei soldi da parte per questa spesa.</div></div>
@@ -1434,11 +1465,12 @@ function fundSheet(f){
     <button class="btn ${edit?'ghost':''}" id="ok">${edit?'Salva modifiche':'Crea accantonamento'}</button>
     ${edit?'<button class="btn danger" id="del" style="margin-top:8px">Elimina accantonamento</button>':''}`,sh=>{
     liveAmount($('#am'));liveAmount($('#in'));
+    const duP=monthPicker($('#du'),st.due,{min:edit?'':cur});
     sh.querySelectorAll('[data-ev]').forEach(b=>b.onclick=()=>{st.every=+b.dataset.ev;sh.querySelectorAll('[data-ev]').forEach(x=>x.classList.toggle('on',x===b))});
     sh.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{st.cat=b.dataset.c;sh.querySelectorAll('[data-c]').forEach(x=>x.classList.toggle('on',x===b))});
     edit&&($('#pay').onclick=()=>txSheet(null,{type:'out',fund:f.id,cat:f.cat,amount:f.amount,note:f.name}));
     $('#ok').onclick=()=>{
-      st.name=$('#nm').value.trim(); st.amount=parseAmt($('#am').value); st.due=$('#du').value; const iv=parseAmt($('#in').value); st.init=isFinite(iv)?iv:0;
+      st.name=$('#nm').value.trim(); st.amount=parseAmt($('#am').value); st.due=duP.get(); const iv=parseAmt($('#in').value); st.init=isFinite(iv)?iv:0;
       if(!st.name){toast('Dai un nome');return} if(!(st.amount>0)){toast('Inserisci l\'importo');return}
       if(!/^\d{4}-\d{2}$/.test(st.due||'')){toast('Indica la scadenza');return} if(!st.cat){toast('Scegli una categoria');return}
       if(edit){const k=S.funds.findIndex(x=>x.id===st.id);S.funds[k]=st}
@@ -1474,14 +1506,13 @@ function goalSheet(g){
       <div class="lbl" style="margin-top:18px">Modifica</div>`
     :`<p class="note" style="margin:-6px 0 14px">Fissa una cifra e, se vuoi, una data: l'app ti dice quanto mettere da parte ogni mese per arrivarci in tempo. Ottimo per la 13ª e la 14ª.</p>`}
     <div class="field"><label>Nome</label><input id="nm" value="${esc(st.name)}" placeholder="Es. Vacanze, Fondo emergenze" maxlength="40"></div>
-    <div class="two">
-      <div class="field"><label>Cifra da raggiungere €</label><input id="tg" inputmode="decimal" value="${amtIn(st.target)}" placeholder="0,00"></div>
-      <div class="field"><label>Entro (facoltativo)</label><input id="dl" type="month" value="${st.deadline||''}" min="${cur}"></div>
-    </div>
+    <div class="field"><label>Cifra da raggiungere €</label><input id="tg" inputmode="decimal" value="${amtIn(st.target)}" placeholder="0,00"></div>
+    <div class="field"><label>Entro (facoltativo)</label><div id="dl"></div></div>
     ${edit?'':`<div class="field"><label>Già messo da parte</label><input id="in" inputmode="decimal" placeholder="0,00"></div>`}
     <button class="btn ${edit?'ghost':''}" id="ok">${edit?'Salva modifiche':'Crea obiettivo'}</button>
     ${edit?'<button class="btn danger" id="del" style="margin-top:8px">Elimina obiettivo</button>':''}`,()=>{
     liveAmount($('#tg')); if(!edit)liveAmount($('#in'));
+    const dlP=monthPicker($('#dl'),st.deadline||'',{min:cur,allowEmpty:true,emptyLabel:'Nessuna scadenza'});
     const persist=()=>{const k=S.goals.findIndex(x=>x.id===st.id);S.goals[k]={...S.goals[k],moves:st.moves}};
     if(edit){
       liveAmount($('#mv'));
@@ -1493,7 +1524,7 @@ function goalSheet(g){
       $('#spend').onclick=()=>txSheet(null,{type:'out',fund:g.id,note:g.name});
     }
     $('#ok').onclick=()=>{
-      st.name=$('#nm').value.trim(); st.target=parseAmt($('#tg').value); st.deadline=$('#dl').value||'';
+      st.name=$('#nm').value.trim(); st.target=parseAmt($('#tg').value); st.deadline=dlP.get()||'';
       if(!st.name){toast('Dai un nome');return} if(!(st.target>0)){toast('Inserisci la cifra');return}
       if(edit){const k=S.goals.findIndex(x=>x.id===st.id);S.goals[k]={...S.goals[k],name:st.name,target:st.target,deadline:st.deadline}}
       else{
