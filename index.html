@@ -271,7 +271,7 @@ details.help b{color:var(--text)}
    Tutti i dati restano nel telefono (localStorage).
    ========================================================= */
 const KEY='salvadanaio.v1';
-const APP_VERSION='2.2.1';
+const APP_VERSION='2.3';
 const DATA_V=2;
 
 /* ---------------- categorie ---------------- */
@@ -598,6 +598,7 @@ window.addEventListener('popstate',()=>{
 const chipBtn=(id,label)=>`<button class="chip" id="${id}" style="padding:3px 10px;font-size:12px;letter-spacing:0;text-transform:none">${label}</button>`;
 const miniBar=(pct,col)=>`<div class="mb"><i style="width:${pct}%;background:${col||'var(--gold)'}"></i></div>`;
 
+let UPDATE_READY=false;
 let VIEW='home', MOV_M=null, MOV_W='all', MOV_Q='', AN_M=null;
 const ICONS={
   eye:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
@@ -656,6 +657,7 @@ function renderHome(){
   const hasRes=S.funds.length||S.goals.length;
 
   $('#v-home').innerHTML=`
+  ${UPDATE_READY?`<div class="banner">✨ <span>È disponibile una nuova versione dell'app</span><button id="updNow">Aggiorna</button></div>`:''}
   ${!S.tipsSeen&&S.tx.length<20?`<div class="banner">👋 <span>Prima volta? Scopri in 2 minuti come funziona</span><button id="tipGo">Leggi</button><button id="tipX" class="x" aria-label="Chiudi">✕</button></div>`:''}
   ${needBackup?`<div class="banner">🛡️ <span>${S.lastBackup?'Ultimo backup oltre 30 giorni fa':'Non hai ancora fatto un backup'}</span><button id="bkNow">Backup</button></div>`:''}
   ${late.length?`<div class="banner">⚖️ <span>Verifica ${late.length===2?'conto e contanti':late[0]==='conto'?'il saldo del conto':'i contanti'}: ultimo controllo ${lateDays} giorni fa</span><button id="alNow">Verifica</button></div>`:''}
@@ -746,6 +748,7 @@ function renderHome(){
   document.querySelectorAll('#v-home [data-q]').forEach(b=>b.onclick=()=>runQuick(S.quick.find(q=>q.id===b.dataset.q)));
   $('#qMng')&&($('#qMng').onclick=quickSheet);
   $('#tipGo')&&($('#tipGo').onclick=helpSheet);
+  $('#updNow')&&($('#updNow').onclick=()=>location.reload());
   $('#tipX')&&($('#tipX').onclick=()=>{S.tipsSeen=true;save();render()});
   document.querySelectorAll('#v-home [data-loan]').forEach(b=>b.onclick=()=>{const [ti,li]=b.dataset.loan.split('|');loanSheet(ti,li)});
   bindHomeClose(t);
@@ -926,7 +929,14 @@ function helpSheet(){
   openSheet(`<h2>Come funziona</h2>
     <p class="note" style="margin:-6px 0 12px">Tocca un argomento per aprirlo.</p>
     ${HELP.map(([e,t,b],i)=>`<details class="help" ${i===0?'open':''}><summary><span>${e}</span>${t}</summary><div>${b}</div></details>`).join('')}
-    <button class="btn" id="hOk" style="margin-top:14px">Ho capito</button>`,()=>{$('#hOk').onclick=()=>{closeSheet();render()}});
+    <button class="btn" id="hOk" style="margin-top:14px">Ho capito</button>
+    <button class="btn ghost sm" id="hInv" style="margin-top:8px">↗ Condividi la guida rapida</button>`,()=>{$('#hOk').onclick=()=>{closeSheet();render()};$('#hInv').onclick=shareGuide});
+}
+const GUIDE_URL=()=>new URL('guida.html',location.href).href;
+async function shareGuide(){
+  const url=GUIDE_URL(), text='Ti consiglio Salvadanaio per tenere sotto controllo conto, contanti e risparmi. I dati restano solo sul tuo telefono. Qui trovi come installarla:';
+  try{if(navigator.share){await navigator.share({title:'Salvadanaio',text,url});return}}catch(e){if(e&&e.name==='AbortError')return}
+  try{await navigator.clipboard.writeText(text+' '+url);toast('Link copiato: incollalo dove vuoi')}catch(e){prompt('Copia questo link:',url)}
 }
 
 /* ---------------- RIEPILOGO ANNUALE ---------------- */
@@ -1088,7 +1098,8 @@ function renderSet(){
   </div>
   <div class="card"><h3>Home e aiuto</h3>
     <button class="row" id="sHome"><div class="rl">Sezioni della Home<small>Scegli cosa vedere nella schermata principale</small></div><div class="rv">›</div></button>
-    <button class="row" id="sHelp"><div class="rl">Come funziona<small>Guida rapida a tutte le funzioni</small></div><div class="rv">›</div></button>
+    <button class="row" id="sHelp"><div class="rl">Come funziona<small>Guida a tutte le funzioni</small></div><div class="rv">›</div></button>
+    <button class="row" id="sInv"><div class="rl">Invita qualcuno<small>Manda il link alla guida rapida con le istruzioni per installarla</small></div><div class="rv">↗</div></button>
   </div>
   <div class="card"><h3>Dati e backup</h3>
     <button class="row" id="bExp"><div class="rl">Esegui backup<small>${S.lastBackup?'Ultimo: '+shortD(S.lastBackup)+' '+S.lastBackup.slice(0,4):'Mai eseguito'} · salvalo su Drive o inviatelo via mail</small></div><div class="rv">⬇</div></button>
@@ -1107,6 +1118,7 @@ function renderSet(){
   $('#sAlD').onclick=alignDaysSheet;
   $('#sHome').onclick=homeSheet;
   $('#sHelp').onclick=helpSheet;
+  $('#sInv').onclick=shareGuide;
   document.querySelectorAll('#v-set [data-r]').forEach(b=>b.onclick=()=>recSheet(recs.find(r=>r.id===b.dataset.r)));
   document.querySelectorAll('#v-set [data-al]').forEach(b=>b.onclick=()=>alignSheet(b.dataset.al));
   $('#bExp').onclick=exportBackup; $('#bImp').onclick=()=>$('#fileIn').click(); $('#bCsv').onclick=exportCsv;
@@ -1541,7 +1553,7 @@ function goalSheet(g){
 }
 
 /* ---------------- CATEGORIE ---------------- */
-function catUsed(id){return S.tx.some(t=>t.cat===id)||S.recurring.some(r=>r.cat===id)||S.funds.some(f=>f.cat===id)}
+function catUsed(id){return S.tx.some(t=>t.cat===id)||S.recurring.some(r=>r.cat===id)||S.funds.some(f=>f.cat===id)||(S.quick||[]).some(q=>q.cat===id)}
 function catsSheet(type){
   const list=S.cats[type];
   openSheet(`<h2>Categorie</h2>
@@ -1629,7 +1641,7 @@ $('#fileIn').onchange=e=>{
 function renderOnboarding(){
   $('#app').innerHTML=`<div class="onb">
     <img class="logo" src="logo-white.png" alt="" style="background:#fff">
-    <h1>Salvadanaio</h1><p class="sub">Tre dati per iniziare. Potrai cambiarli quando vuoi.</p>
+    <h1>Salvadanaio</h1><p class="sub">Pochi dati per iniziare. Potrai cambiarli quando vuoi.</p>
     <div class="card">
       <div class="two">
         <div class="field"><label>🏦 Saldo conto</label><input id="o1" inputmode="decimal" placeholder="0,00"></div>
@@ -1662,7 +1674,13 @@ if(S){const before=S.v;S=migrate(S);buildCats();if(before!==DATA_V)save();runRec
 render();
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S){const n=S.tx.length;runRecurring();if(S.tx.length!==n)render()}});
 if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
-if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+if('serviceWorker' in navigator)window.addEventListener('load',()=>{
+  const had=!!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js').then(reg=>{
+    document.addEventListener('visibilitychange',()=>{if(!document.hidden)reg.update().catch(()=>{})});
+  }).catch(()=>{});
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{if(had&&!UPDATE_READY){UPDATE_READY=true;if(S&&!sheetOpen()&&VIEW==='home')render()}});
+});
 </script>
 </body>
 </html>
